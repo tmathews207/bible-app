@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Public reads everywhere; only an admin can write reading plan or
+    // journal content.
+    match /readingPlan/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /journalEntries/{date} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // A signed-in user may read their own role record; an admin may read
+    // any of them (needed for the "Manage Users" page). A brand-new
+    // account may create its own record as a 'viewer' (this is what
+    // happens right after createUserWithEmailAndPassword, before an admin
+    // has had a chance to promote them) but cannot self-promote. Only an
+    // admin can change roles after that.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.role == 'viewer';
+      allow update: if isAdmin();
+    }
+  }
+}
