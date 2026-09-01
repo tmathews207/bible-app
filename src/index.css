@@ -466,6 +466,7 @@ input, select, textarea {
 .journal-editor-form { display: flex; flex-direction: column; gap: 28px; }
 .form-section { }
 .date-picker { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.date-picker-row { display: flex; align-items: flex-end; gap: 10px; }
 .journal-editor-save-row { display: flex; align-items: center; gap: 12px; }
 .saved-message { color: var(--success); }
 

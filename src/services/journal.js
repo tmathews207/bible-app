@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -53,4 +54,8 @@ export async function saveJournalEntry(date, entry) {
   };
   await setDoc(entryRef(date), payload);
   return { date, ...payload };
+}
+
+export async function deleteJournalEntry(date) {
+  await deleteDoc(entryRef(date));
 }

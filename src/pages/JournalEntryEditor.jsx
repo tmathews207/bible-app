@@ -7,7 +7,12 @@ import FocusLevelPicker from '../components/FocusLevelPicker';
 import RichTextEditor from '../components/RichTextEditor';
 import { BIBLE_BOOKS, chapterCount } from '../data/bibleBooks';
 import { subscribeReadingPlan } from '../services/readingPlan';
-import { getJournalEntry, saveJournalEntry, subscribeAllJournalEntries } from '../services/journal';
+import {
+  deleteJournalEntry,
+  getJournalEntry,
+  saveJournalEntry,
+  subscribeAllJournalEntries,
+} from '../services/journal';
 import { getUnreadPlanChapters } from '../utils/progress';
 
 function todayIso() {
@@ -26,7 +31,16 @@ const BLANK_ENTRY = {
 export default function JournalEntryEditor() {
   const { date: dateParam } = useParams();
   const navigate = useNavigate();
+
+  // `date` is what the date field shows and what Save will write to.
+  // `loadedDate` is the doc actually fetched from Firestore (the entry's
+  // current identity) -- it only changes on navigation, never just from
+  // typing in the date field. This is what lets you correct a mis-dated
+  // entry (edit `date`, hit Save) without silently discarding the form by
+  // reloading whatever (if anything) already exists at the new date.
   const [date, setDate] = useState(dateParam || todayIso());
+  const [loadedDate, setLoadedDate] = useState(dateParam || todayIso());
+  const [loadedExists, setLoadedExists] = useState(false);
   const [planItems, setPlanItems] = useState([]);
   const [allEntries, setAllEntries] = useState([]);
   const [entry, setEntry] = useState(BLANK_ENTRY);
@@ -38,25 +52,66 @@ export default function JournalEntryEditor() {
   useEffect(() => subscribeAllJournalEntries(setAllEntries), []);
 
   useEffect(() => {
+    const target = dateParam || todayIso();
     setLoading(true);
-    getJournalEntry(date).then((existing) => {
+    getJournalEntry(target).then((existing) => {
+      setDate(target);
+      setLoadedDate(target);
+      setLoadedExists(Boolean(existing));
       setEntry(existing ? { ...BLANK_ENTRY, ...existing } : BLANK_ENTRY);
       setLoading(false);
     });
-  }, [date]);
+  }, [dateParam]);
 
   const unreadChapters = useMemo(
-    () => getUnreadPlanChapters(planItems, allEntries, date),
-    [planItems, allEntries, date]
+    () => getUnreadPlanChapters(planItems, allEntries, loadedDate),
+    [planItems, allEntries, loadedDate]
   );
 
+  const dateChanged = date !== loadedDate;
+
+  const handleLoadDate = () => {
+    if (!dateChanged) return;
+    navigate(`/admin/journal/${date}`);
+  };
+
   const handleSave = async () => {
+    if (!date) return;
     setSaving(true);
     setSavedMessage('');
-    await saveJournalEntry(date, entry);
+
+    if (dateChanged) {
+      const destination = await getJournalEntry(date);
+      if (destination) {
+        const ok = window.confirm(
+          `An entry already exists for ${date} and will be overwritten. Continue?`
+        );
+        if (!ok) {
+          setSaving(false);
+          return;
+        }
+      }
+      await saveJournalEntry(date, entry);
+      if (loadedExists) await deleteJournalEntry(loadedDate);
+    } else {
+      await saveJournalEntry(date, entry);
+    }
+
     setSaving(false);
     setSavedMessage('Saved.');
     navigate(`/admin/journal/${date}`, { replace: true });
+  };
+
+  const handleDelete = async () => {
+    if (!loadedExists) return;
+    const ok = window.confirm(
+      `Delete the journal entry for ${loadedDate}? This can't be undone. Any reading-plan chapters logged in it become selectable again.`
+    );
+    if (!ok) return;
+    setSaving(true);
+    await deleteJournalEntry(loadedDate);
+    setSaving(false);
+    navigate('/admin/journal');
   };
 
   return (
@@ -65,15 +120,30 @@ export default function JournalEntryEditor() {
       <main className="page journal-editor">
         <div className="page-header-row">
           <h1>Journal Entry</h1>
-          <label className="date-picker">
-            Date
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </label>
+          <div className="date-picker-row">
+            <label className="date-picker">
+              Date
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
+            {dateChanged && (
+              <button type="button" onClick={handleLoadDate}>
+                Load {date} instead
+              </button>
+            )}
+          </div>
         </div>
+
+        {dateChanged && (
+          <p className="hint-text">
+            Editing an entry originally saved under {loadedDate}. Hit "Save entry" to move
+            it to {date}, or "Load {date} instead" to switch to whatever's already saved
+            there (discarding these unsaved changes).
+          </p>
+        )}
 
         {loading ? (
           <p>Loading...</p>
@@ -135,6 +205,11 @@ export default function JournalEntryEditor() {
               <button type="button" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : 'Save entry'}
               </button>
+              {loadedExists && (
+                <button type="button" className="danger" onClick={handleDelete} disabled={saving}>
+                  Delete entry
+                </button>
+              )}
               {savedMessage && <span className="saved-message">{savedMessage}</span>}
             </div>
           </div>
