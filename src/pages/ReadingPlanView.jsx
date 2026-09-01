@@ -1,12 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import ChapterTree from '../components/ChapterTree';
 import RichTextView from '../components/RichTextView';
-import { BIBLE_BOOKS, chapterKey } from '../data/bibleBooks';
+import { chapterKey } from '../data/bibleBooks';
 import { subscribeReadingPlan } from '../services/readingPlan';
 import { subscribeAllJournalEntries } from '../services/journal';
 import { aggregateChapterNotes, entryDatesForChapter, getReadPlanKeySet } from '../utils/progress';
+
+// Group the (already order-sorted) plan items into books, in the order each
+// book first appears in the reading sequence -- not canonical Bible order --
+// and keep each book's chapters in plan order too. Books/chapters with no
+// entry in the plan are omitted entirely.
+function groupPlanByBook(planItems) {
+  const books = [];
+  const byName = new Map();
+  for (const item of planItems) {
+    let book = byName.get(item.book);
+    if (!book) {
+      book = { name: item.book, chapterNumbers: [] };
+      byName.set(item.book, book);
+      books.push(book);
+    }
+    book.chapterNumbers.push(item.chapter);
+  }
+  return books;
+}
 
 export default function ReadingPlanView() {
   const [planItems, setPlanItems] = useState([]);
@@ -17,6 +36,7 @@ export default function ReadingPlanView() {
   useEffect(() => subscribeReadingPlan(setPlanItems), []);
   useEffect(() => subscribeAllJournalEntries(setEntries), []);
 
+  const planBooks = useMemo(() => groupPlanByBook(planItems), [planItems]);
   const planOrder = new Map(planItems.map((i) => [chapterKey(i.book, i.chapter), i.order]));
   const readKeys = getReadPlanKeySet(planItems, entries);
   const chapterNotes = aggregateChapterNotes(entries);
@@ -36,7 +56,7 @@ export default function ReadingPlanView() {
   };
 
   const expandAll = () => {
-    setExpandedBooks(new Set(BIBLE_BOOKS.map((b) => b.name)));
+    setExpandedBooks(new Set(planBooks.map((b) => b.name)));
   };
 
   const renderChapter = (book, chapter) => {
@@ -52,7 +72,9 @@ export default function ReadingPlanView() {
         key={chapter}
         className={`chapter-tile ${isOpen ? 'selected' : ''} ${wasRead ? 'read' : ''}`}
         onClick={() => setExpandedChapter(isOpen ? null : { book, chapter })}
+        title={wasRead ? 'Read' : 'Not read yet'}
       >
+        {wasRead && <span className="chapter-tile-read-check" aria-hidden="true">&#10003;</span>}
         <span className="chapter-tile-chapter">{chapter}</span>
         {order ? <span className="chapter-tile-order">#{order}</span> : null}
         {notes.length > 0 && (
@@ -75,18 +97,24 @@ export default function ReadingPlanView() {
       <main className="page">
         <div className="page-header-row">
           <h1>Reading Plan</h1>
-          <div className="page-header-actions">
-            <button type="button" onClick={expandAll}>Expand all</button>
-            <button type="button" onClick={collapseAll}>Collapse all</button>
-          </div>
+          {planBooks.length > 0 && (
+            <div className="page-header-actions">
+              <button type="button" onClick={expandAll}>Expand all</button>
+              <button type="button" onClick={collapseAll}>Collapse all</button>
+            </div>
+          )}
         </div>
 
-        <ChapterTree
-          books={BIBLE_BOOKS}
-          expandedBooks={expandedBooks}
-          onToggleBook={toggleBook}
-          renderChapter={renderChapter}
-        />
+        {planBooks.length === 0 ? (
+          <p className="empty-note">No reading plan chapters have been added yet.</p>
+        ) : (
+          <ChapterTree
+            books={planBooks}
+            expandedBooks={expandedBooks}
+            onToggleBook={toggleBook}
+            renderChapter={renderChapter}
+          />
+        )}
 
         {expandedChapter && (
           <div className="chapter-detail-panel">
