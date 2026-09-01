@@ -97,6 +97,12 @@ export default function JournalEntryEditor() {
       await saveJournalEntry(date, entry);
     }
 
+    // Set these directly rather than relying on the route effect to pick
+    // them up: navigating to the same URL (the common case, when the date
+    // wasn't changed) doesn't re-trigger it, since the route param is
+    // unchanged.
+    setLoadedDate(date);
+    setLoadedExists(true);
     setSaving(false);
     setSavedMessage('Saved.');
     navigate(`/admin/journal/${date}`, { replace: true });
