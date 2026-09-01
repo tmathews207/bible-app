@@ -35,6 +35,14 @@ export function bookNames() {
   return BIBLE_BOOKS.map((b) => b.name);
 }
 
+// Full canon with each book's chapters spelled out as an explicit array
+// (1..N), for callers like ChapterTree that need every book's chapter list
+// up front rather than just a count.
+export const BIBLE_BOOKS_WITH_CHAPTER_NUMBERS = BIBLE_BOOKS.map((b) => ({
+  name: b.name,
+  chapterNumbers: Array.from({ length: b.chapters }, (_, i) => i + 1),
+}));
+
 export function chapterCount(book) {
   return BIBLE_BOOKS.find((b) => b.name === book)?.chapters ?? 0;
 }

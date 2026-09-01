@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import NavBar from '../components/NavBar';
 import ChapterTree from '../components/ChapterTree';
-import { BIBLE_BOOKS, chapterKey } from '../data/bibleBooks';
-
-const ALL_BOOKS_WITH_CHAPTER_NUMBERS = BIBLE_BOOKS.map((b) => ({
-  name: b.name,
-  chapterNumbers: Array.from({ length: b.chapters }, (_, i) => i + 1),
-}));
+import { BIBLE_BOOKS_WITH_CHAPTER_NUMBERS, chapterKey } from '../data/bibleBooks';
 import { getReadingPlan, saveReadingPlan } from '../services/readingPlan';
 
 export default function ReadingPlanEditor() {
@@ -106,7 +101,7 @@ export default function ReadingPlanEditor() {
 
         <div className="reading-plan-editor-layout">
           <ChapterTree
-            books={ALL_BOOKS_WITH_CHAPTER_NUMBERS}
+            books={BIBLE_BOOKS_WITH_CHAPTER_NUMBERS}
             expandedBooks={expandedBooks}
             onToggleBook={toggleBook}
             renderChapter={renderChapter}

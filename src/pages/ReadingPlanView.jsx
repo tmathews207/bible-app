@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import ChapterTree from '../components/ChapterTree';
 import RichTextView from '../components/RichTextView';
-import { chapterKey } from '../data/bibleBooks';
+import { BIBLE_BOOKS_WITH_CHAPTER_NUMBERS, chapterKey } from '../data/bibleBooks';
 import { subscribeReadingPlan } from '../services/readingPlan';
 import { subscribeAllJournalEntries } from '../services/journal';
 import { aggregateChapterNotes, entryDatesForChapter, getReadPlanKeySet } from '../utils/progress';
@@ -30,6 +30,7 @@ function groupPlanByBook(planItems) {
 export default function ReadingPlanView() {
   const [planItems, setPlanItems] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [viewMode, setViewMode] = useState('plan'); // 'plan' | 'all'
   const [expandedBooks, setExpandedBooks] = useState(new Set());
   const [expandedChapter, setExpandedChapter] = useState(null); // { book, chapter }
 
@@ -37,9 +38,16 @@ export default function ReadingPlanView() {
   useEffect(() => subscribeAllJournalEntries(setEntries), []);
 
   const planBooks = useMemo(() => groupPlanByBook(planItems), [planItems]);
+  const activeBooks = viewMode === 'plan' ? planBooks : BIBLE_BOOKS_WITH_CHAPTER_NUMBERS;
   const planOrder = new Map(planItems.map((i) => [chapterKey(i.book, i.chapter), i.order]));
   const readKeys = getReadPlanKeySet(planItems, entries);
   const chapterNotes = aggregateChapterNotes(entries);
+
+  const switchView = (mode) => {
+    setViewMode(mode);
+    setExpandedBooks(new Set());
+    setExpandedChapter(null);
+  };
 
   const toggleBook = (name) => {
     setExpandedBooks((prev) => {
@@ -56,7 +64,7 @@ export default function ReadingPlanView() {
   };
 
   const expandAll = () => {
-    setExpandedBooks(new Set(planBooks.map((b) => b.name)));
+    setExpandedBooks(new Set(activeBooks.map((b) => b.name)));
   };
 
   const renderChapter = (book, chapter) => {
@@ -97,19 +105,37 @@ export default function ReadingPlanView() {
       <main className="page">
         <div className="page-header-row">
           <h1>Reading Plan</h1>
-          {planBooks.length > 0 && (
-            <div className="page-header-actions">
-              <button type="button" onClick={expandAll}>Expand all</button>
-              <button type="button" onClick={collapseAll}>Collapse all</button>
+          <div className="page-header-actions">
+            <div className="calendar-toggle">
+              <button
+                type="button"
+                className={viewMode === 'plan' ? 'active' : ''}
+                onClick={() => switchView('plan')}
+              >
+                My Plan
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'all' ? 'active' : ''}
+                onClick={() => switchView('all')}
+              >
+                All Books
+              </button>
             </div>
-          )}
+            {activeBooks.length > 0 && (
+              <>
+                <button type="button" onClick={expandAll}>Expand all</button>
+                <button type="button" onClick={collapseAll}>Collapse all</button>
+              </>
+            )}
+          </div>
         </div>
 
-        {planBooks.length === 0 ? (
+        {activeBooks.length === 0 ? (
           <p className="empty-note">No reading plan chapters have been added yet.</p>
         ) : (
           <ChapterTree
-            books={planBooks}
+            books={activeBooks}
             expandedBooks={expandedBooks}
             onToggleBook={toggleBook}
             renderChapter={renderChapter}
